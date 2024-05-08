@@ -2,19 +2,48 @@
 import streamlit as st
 from streamlit.logger import get_logger
 import tweepy
+from dotenv import load_dotenv
+import os
+import logging
+from streamlit_searchbox import st_searchbox
+import requests
+
+logging.basicConfig(level=logging.DEBUG)
+
+load_dotenv()
+
+
+
 
 LOGGER = get_logger(__name__)
 
+##Fetch Stock tickers for dropdown
+def fetch_symbols(query):
+  api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+  if query:
+    url = f'https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={query}&apikey={api_key}'
+    r = requests.get(url)
+    data = r.json()
+    if 'bestMatches' in data:
+        symbols = [item['1. symbol'] for item in data['bestMatches']]
+    else:
+        symbols = []
+        print("No matches found")
+    return symbols
 
-# auth = tweepy.OAuth1UserHandler(
-#     consumer_key, consumer_secret, access_token, access_token_secret
-# )
+##Search tweets with given query
+def search_tweets(query):
+    bearer_token = os.getenv("TWITTER_BEARER_TOKEN")
+    auth = tweepy.OAuth2BearerHandler(bearer_token)
+    api = tweepy.API(auth)
+    search_results = api.search_tweets(query)
+    if 'SearchResults' in search_results:
+      tweets = [tweet['text'] for tweet in search_results['data']]
+    else:
+      tweets = []
+      print("No data found")
+    return tweets
 
-# api = tweepy.API(auth)
-
-# public_tweets = api.home_timeline()
-# for tweet in public_tweets:
-#     print(tweet.text)
 
 def run():
     st.set_page_config(
@@ -22,27 +51,20 @@ def run():
         page_icon="👋",
     )
 
-    st.write("# Welcome to Streamlit! 👋")
-
-    st.sidebar.success("Select a demo above.")
-
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
-        **👈 Select a demo from the sidebar** to see some examples
-        of what Streamlit can do!
-        ### Want to learn more?
-        - Check out [streamlit.io](https://streamlit.io)
-        - Jump into our [documentation](https://docs.streamlit.io)
-        - Ask a question in our [community
-          forums](https://discuss.streamlit.io)
-        ### See more complex demos
-        - Use a neural net to [analyze the Udacity Self-driving Car Image
-          Dataset](https://github.com/streamlit/demo-self-driving)
-        - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
-    """
+## Autocomplete search
+    selected_symbol = st_searchbox(
+        fetch_symbols,
+        key="stock_searchbox",
     )
+
+##Search tweets
+    if selected_symbol:
+        if st.button('Search'):
+          st.write(f'You selected: {selected_symbol}')
+          tweets = search_tweets(selected_symbol)
+          st.write('Related tweets:')
+          for tweet in tweets:
+              st.write(tweet)
 
 
 if __name__ == "__main__":
